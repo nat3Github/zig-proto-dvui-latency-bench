@@ -18,6 +18,7 @@ pub var backend_cursor_management_time: gui.Stat = .{};
 const backend_fn_type = @TypeOf(Backend.initWindow);
 const backend_fn_err_t = @typeInfo(@typeInfo(backend_fn_type).@"fn".return_type.?).error_union.payload;
 pub var backend_ref: *backend_fn_err_t = undefined;
+pub var win_ref: *dvui.Window = undefined;
 test "all" {
     std.testing.refAllDecls(@This());
 }
@@ -52,41 +53,50 @@ pub fn main() !void {
 
     main_loop: while (true) {
         const nstime = win.beginWait(interrupted);
+
+        // marks the beginning of a frame for dvui, can call dvui functions after this
         try win.begin(nstime);
 
+        // send all SDL events to dvui for processing
         const quit = try backend.addAllEvents(&win);
         if (quit) break :main_loop;
 
+        // if dvui widgets might not cover the whole window, then need to clear
+        // the previous frame's render
         _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 0, 0, 0, 255);
         _ = Backend.c.SDL_RenderClear(backend.renderer);
 
-        // load font
+        // The demos we pass in here show up under "Platform-specific demos"
         const sf_pro_ttf = @embedFile("assets/SF-Pro.ttf");
         try dvui.addFont("base", sf_pro_ttf, null);
 
         gui.main() catch |e| {
             std.log.err("{}", .{e});
         };
-        // -----------------------------------------------------------------------------------------
+
         // marks end of dvui frame, don't call dvui functions after this
         // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
+        const end_micros = try win.end(.{});
 
+        // cursor management
         backend_ref = &backend;
+        win_ref = &win;
+
         backend_cursor_management_time.update(backend_cursor_management);
         backend_frame_render_time.update(backend_render_frame);
-
-        const end_micros = try win.end(.{});
 
         // waitTime and beginWait combine to achieve variable framerates
         const wait_event_micros = win.waitTime(end_micros, null);
         interrupted = try backend.waitEventTimeout(wait_event_micros);
+
+        // -----------------------------------------------------------------------------------------
     }
 }
 
 fn backend_cursor_management() void {
     const backend = backend_ref;
+    const win = win_ref;
     // cursor management
-    const win = dvui.currentWindow();
     backend.setCursor(win.cursorRequested()) catch return;
     backend.textInputRect(win.textInputRequested()) catch return;
 }
