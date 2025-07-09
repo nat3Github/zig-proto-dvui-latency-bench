@@ -70,11 +70,12 @@ pub fn main() !void {
         // -----------------------------------------------------------------------------------------
         // marks end of dvui frame, don't call dvui functions after this
         // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
-        const end_micros = try win.end(.{});
 
         backend_ref = &backend;
         backend_cursor_management_time.update(backend_cursor_management);
         backend_frame_render_time.update(backend_render_frame);
+
+        const end_micros = try win.end(.{});
 
         // waitTime and beginWait combine to achieve variable framerates
         const wait_event_micros = win.waitTime(end_micros, null);
