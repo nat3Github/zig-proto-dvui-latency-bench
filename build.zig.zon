@@ -1,0 +1,32 @@
+.{
+    .fingerprint = 0x9675c17cb9db7eba,
+    .name = .sampl3n,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.14.1",
+
+    .dependencies = .{
+        .tailwind = .{
+            .url = "git+https://github.com/nat3Github/zig-lib-tailwind-colors#d537cda9f7f8053597f4423fcaa8babe8deb7d09",
+            .hash = "tailwind-0.0.0-j7vJMd0vAAD73YpI5PS1FuPJlYrlGCwGvM5E-xYtWWgl",
+        },
+        .icons = .{
+            .url = "git+https://github.com/nat3Github/zig-lib-icons#8e34a0324d46d73a5a59bda09892ac5140b54c0f",
+            .hash = "icons-0.0.0-iJxA-c33MwAwe2T9SnPQlmpIkKfdNt9jQ5buN-CLufTe",
+        },
+        .dvui = .{
+            .path = "../../lib/dvui",
+            // .url = "git+https://github.com/nat3Github/zig-lib-dvui-dev-fork#a5462bdd2e656cdce244f41df06bed71808fec03",
+            // .hash = "dvui-0.2.0-AQFJmXS2zgBmEu8VDo8ybmiFb54bC9WBEHTVcggH-ncf",
+        },
+        .z2d = .{
+            .url = "git+https://github.com/nat3Github/zig-lib-z2d-dev-fork#03425c05a20d35cbeb62e0d17c60f890634bbf8f",
+            .hash = "z2d-0.6.3-pre-j5P_Hpr7CgDs92sCmKFFCBMASENBhbn0klrHEAJL_uDV",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "update.zig",
+    },
+}
