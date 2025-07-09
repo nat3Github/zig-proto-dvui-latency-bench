@@ -26,7 +26,7 @@ pub const Sched = struct {
 };
 
 pub const ColorSettings = struct {
-    bg_color: dvui.Options.ColorOrName = .fromColor(.fromHex(tailwind.red500)),
+    bg_color: dvui.Options.ColorOrName = .fromColor(.fromHex(tailwind.slate700)),
 };
 
 pub const App = struct {
@@ -80,6 +80,7 @@ pub const App = struct {
             .r = to_u8(r),
             .g = to_u8(g),
             .b = to_u8(b),
+            .a = 255,
         };
     }
     fn to_u8(f: f32) u8 {
@@ -88,17 +89,25 @@ pub const App = struct {
     pub fn random_color(self: *App) void {
         const c = hueToRgb(@floatFromInt(self.col_idx));
         self.col_idx = (self.col_idx + 1) % 360;
-        sfc_random_color(&self.img_1200x1200, c);
-        sfc_random_color(&self.img_600x600, c);
+        sfc_set_bg_color(&self.img_1200x1200, c);
+        sfc_set_bg_color(&self.img_600x600, c);
     }
-    pub fn sfc_random_color(sfc: *z2d.Surface, c: dvui.Color) void {
+    pub fn z2d_pixel_from(c: dvui.Color) z2d.pixel.RGBA {
+        return z2d.pixel.RGBA{
+            .r = c.r,
+            .g = c.g,
+            .b = c.b,
+            .a = c.a,
+        };
+    }
+    pub fn sfc_set_bg_color(sfc: *z2d.Surface, c: dvui.Color) void {
         const width: usize = @intCast(sfc.getWidth());
         const height: usize = @intCast(sfc.getHeight());
         const pix = z2d.pixel.RGBA{
             .r = c.r,
             .g = c.g,
             .b = c.b,
-            .a = 255,
+            .a = c.a,
         };
         for (0..width) |w| {
             for (0..height) |h| {
@@ -106,7 +115,6 @@ pub const App = struct {
             }
         }
     }
-
     pub fn init(self: *App, alloc: Allocator) !void {
         self.img_1200x1200 = try z2d.Surface.initPixel(.{ .rgba = .{ .r = 255, .g = 0, .b = 255, .a = 255 } }, alloc, 1200, 1200);
         self.img_600x600 = try z2d.Surface.initPixel(.{ .rgba = .{ .r = 255, .g = 0, .b = 255, .a = 255 } }, alloc, 600, 600);

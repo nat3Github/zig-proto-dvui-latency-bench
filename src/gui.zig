@@ -29,13 +29,24 @@ pub fn deinit() void {
 pub const Stat = struct {
     const n = if (@import("builtin").mode == .Debug) 100 else 1000;
     i: usize = 0,
-    time: [n]u64 = undefined,
+    is_init: bool = false,
+    time: [n]u64 = blk: {
+        var arr: [n]u64 = undefined;
+        for (0..n) |i| arr[i] = 0;
+        break :blk arr;
+    },
     current_max: u64 = 0,
     alltime_max: u64 = 0,
     fn no_inline(function: *const fn () void) void {
         function();
     }
+    pub fn init(self: *Stat) void {
+        // const alloc = gState.alloc;
+        // self.img = z2d.Surface.init(.image_surface_rgba, alloc, 300, 30) catch return;
+        self.is_init = true;
+    }
     pub fn update(self: *Stat, function: *const fn () void) void {
+        if (!self.is_init) self.init();
         var t = std.time.Timer.start() catch unreachable;
         t.reset();
         @call(.never_inline, no_inline, .{function});
@@ -49,24 +60,74 @@ pub const Stat = struct {
             self.i += 1;
         }
     }
-    pub fn print(stat: *Stat, src: std.builtin.SourceLocation, name: []const u8, opts: dvui.Options) void {
+    pub fn print_text(self: *Stat, src: std.builtin.SourceLocation, name: []const u8, opts: dvui.Options) void {
+        if (!self.is_init) return;
         const opt = dvui.Options{
             .font_style = .heading,
         };
-        dvui.label(
-            src,
+        dvui.label(src,
             \\{s}: 
             \\{d:.0} us (max from {})
             \\{d:.0} us peak
-        ,
-            .{
-                name,
-                ns_to_us(stat.current_max),
-                Stat.n,
-                ns_to_us(stat.alltime_max),
-            },
-            opt.override(opts),
-        );
+        , .{ name, ns_to_us(self.current_max), Stat.n, ns_to_us(self.alltime_max) }, opt.override(opts));
+    }
+    pub fn draw(self: *Stat, src: std.builtin.SourceLocation, name: []const u8, opts: dvui.Options) void {
+        if (!self.is_init) return;
+
+        var opt = dvui.Options{
+            .font_style = .heading,
+            .id_extra = 0,
+        };
+        dvui.label(src,
+            \\{s}:
+            \\{d:.0} us (max from {})
+            \\{d:.0} us peak
+        , .{ name, ns_to_us(self.current_max), Stat.n, ns_to_us(self.alltime_max) }, opt.override(opts));
+
+        const alloc = dvui.currentWindow()._arena.allocator();
+        var img = z2d.Surface.init(.image_surface_rgba, alloc, 400, 60) catch return;
+        defer img.deinit(alloc);
+        var ctx = z2d.Context.init(alloc, &img);
+        defer ctx.deinit();
+        ctx.setLineWidth(3.0);
+        ctx.setSourceToPixel(.{ .rgba = State.z2d_pixel_from(.fromHex(tailwind.red400)) });
+        State.sfc_set_bg_color(&img, .transparent);
+
+        const window_max_us = 5000.0;
+        const width: usize = @intCast(img.getWidth());
+        const heightf: f64 = @floatFromInt(img.getHeight());
+        const w4 = width / 4;
+        const k_points = n / w4;
+        const dx = @as(f32, @floatFromInt(width)) / @as(f32, @floatFromInt(w4));
+        var dxj: f64 = 0.0;
+        var last_y: f64 = heightf;
+        for (0..w4) |jw| {
+            const sj = jw * k_points;
+            var max: u64 = 0;
+            for (sj..sj + k_points) |j| {
+                const idx = (self.i + j) % n;
+                max = @max(self.time[idx], max);
+            }
+            const us_norm = @min(ns_to_us(max), window_max_us) / window_max_us;
+            const us_inv = 1.0 - us_norm;
+            ctx.moveTo(dxj, last_y) catch return;
+            last_y = us_inv * heightf;
+            ctx.lineTo(dxj + dx, last_y) catch return;
+            ctx.stroke() catch return;
+            ctx.resetPath();
+            dxj += dx;
+        }
+        const opt2 = dvui.Options{
+            .font_style = .heading,
+            .min_size_content = .{ .w = 400, .h = 80 },
+            .expand = .horizontal,
+            .id_extra = opts.id_extra orelse 0 + 1000000,
+        };
+        var imgb = img_bytes(&img);
+        imgb.pixels.invalidation_strategy = .always;
+        _ = dvui.image(@src(), .{
+            .source = imgb,
+        }, opt2);
     }
 };
 fn benchmark_t() type {
@@ -90,6 +151,16 @@ fn benchmark_t() type {
         } };
         return @Type(t);
     }
+}
+fn img_bytes(sfc: *z2d.Surface) dvui.ImageSource {
+    const pix = std.mem.sliceAsBytes(sfc.image_surface_rgba.buf);
+    return dvui.ImageSource{
+        .pixels = .{
+            .rgba = pix,
+            .width = @intCast(sfc.getWidth()),
+            .height = @intCast(sfc.getHeight()),
+        },
+    };
 }
 const benchmark = struct {
     pub fn big_label() void {
@@ -119,16 +190,6 @@ const benchmark = struct {
         const b = img_bytes(&gState.img_600x600);
         _ = dvui.image(@src(), .{ .source = b }, .{});
     }
-    fn img_bytes(sfc: *z2d.Surface) dvui.ImageSource {
-        const pix = std.mem.sliceAsBytes(sfc.image_surface_rgba.buf);
-        return dvui.ImageSource{
-            .pixels = .{
-                .rgba = pix,
-                .width = @intCast(sfc.getWidth()),
-                .height = @intCast(sfc.getHeight()),
-            },
-        };
-    }
     pub fn invalidate_all_images() void {
         dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_1200x1200)));
         dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_600x600)));
@@ -154,14 +215,14 @@ pub fn main() !void {
     switch (mode) {
         .benchmarking => {
             const bfields = @typeInfo(Benchmark).@"struct".fields;
-            @import("main.zig").backend_frame_render_time.print(@src(), "frame backend", .{});
-            @import("main.zig").backend_cursor_management_time.print(@src(), "cursor management", .{});
-            @import("main.zig").dvui_window_end_time.print(@src(), "window.end() call", .{});
+            @import("main.zig").backend_frame_render_time.draw(@src(), "frame backend", .{ .id_extra = 90900 });
+            @import("main.zig").backend_cursor_management_time.draw(@src(), "cursor management", .{ .id_extra = 90901 });
+            @import("main.zig").dvui_window_end_time.draw(@src(), "window.end() call", .{ .id_extra = 90902 });
             inline for (bfields, 0..) |f, i| {
                 const function = @field(benchmark, f.name);
                 const stat: *Stat = &@field(bench, f.name);
                 stat.update(function);
-                stat.print(@src(), f.name, .{ .id_extra = i });
+                stat.draw(@src(), f.name, .{ .id_extra = 1000000 + i });
             }
             dvui.refresh(dvui.currentWindow(), @src(), null);
             gState.random_color();
