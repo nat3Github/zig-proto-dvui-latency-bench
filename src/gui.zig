@@ -154,7 +154,8 @@ pub fn main() !void {
     switch (mode) {
         .benchmarking => {
             const bfields = @typeInfo(Benchmark).@"struct".fields;
-            @import("main.zig").frame_backend_render_time.print(@src(), "frame backend", .{});
+            @import("main.zig").backend_frame_render_time.print(@src(), "frame backend", .{});
+            @import("main.zig").backend_cursor_management_time.print(@src(), "cursor management", .{});
             inline for (bfields, 0..) |f, i| {
                 const function = @field(benchmark, f.name);
                 const stat: *Stat = &@field(bench, f.name);

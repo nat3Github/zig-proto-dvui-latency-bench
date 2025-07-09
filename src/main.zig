@@ -13,7 +13,8 @@ const Backend = dvui.backend;
 const state = @import("state.zig");
 const gui = @import("gui.zig");
 
-pub var frame_backend_render_time: gui.Stat = .{};
+pub var backend_frame_render_time: gui.Stat = .{};
+pub var backend_cursor_management_time: gui.Stat = .{};
 const backend_fn_type = @TypeOf(Backend.initWindow);
 const backend_fn_err_t = @typeInfo(@typeInfo(backend_fn_type).@"fn".return_type.?).error_union.payload;
 pub var backend_ref: *backend_fn_err_t = undefined;
@@ -70,7 +71,8 @@ pub fn main() !void {
         // marks end of dvui frame, don't call dvui functions after this
         // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
         backend_ref = &backend;
-        frame_backend_render_time.update(render_to_backend);
+        backend_cursor_management_time.update(backend_cursor_management);
+        backend_frame_render_time.update(backend_render_frame);
 
         const end_micros = try win.end(.{});
 
@@ -80,13 +82,15 @@ pub fn main() !void {
     }
 }
 
-fn render_to_backend() void {
+fn backend_cursor_management() void {
+    const backend = backend_ref;
     // cursor management
     const win = dvui.currentWindow();
-    const backend = backend_ref;
     backend.setCursor(win.cursorRequested()) catch return;
     backend.textInputRect(win.textInputRequested()) catch return;
-
+}
+fn backend_render_frame() void {
+    const backend = backend_ref;
     // render frame to OS
     backend.renderPresent() catch return;
 }
