@@ -156,6 +156,7 @@ pub fn main() !void {
             const bfields = @typeInfo(Benchmark).@"struct".fields;
             @import("main.zig").backend_frame_render_time.print(@src(), "frame backend", .{});
             @import("main.zig").backend_cursor_management_time.print(@src(), "cursor management", .{});
+            @import("main.zig").dvui_window_end_time.print(@src(), "window.end() call", .{});
             inline for (bfields, 0..) |f, i| {
                 const function = @field(benchmark, f.name);
                 const stat: *Stat = &@field(bench, f.name);

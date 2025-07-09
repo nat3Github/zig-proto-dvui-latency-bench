@@ -15,6 +15,7 @@ const gui = @import("gui.zig");
 
 pub var backend_frame_render_time: gui.Stat = .{};
 pub var backend_cursor_management_time: gui.Stat = .{};
+pub var dvui_window_end_time: gui.Stat = .{};
 const backend_fn_type = @TypeOf(Backend.initWindow);
 const backend_fn_err_t = @typeInfo(@typeInfo(backend_fn_type).@"fn".return_type.?).error_union.payload;
 pub var backend_ref: *backend_fn_err_t = undefined;
@@ -74,14 +75,12 @@ pub fn main() !void {
             std.log.err("{}", .{e});
         };
 
-        // marks end of dvui frame, don't call dvui functions after this
-        // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
-        const end_micros = try win.end(.{});
-
-        // cursor management
         backend_ref = &backend;
         win_ref = &win;
 
+        dvui_window_end_time.update(dvui_win_end);
+
+        // sdl stuff
         backend_cursor_management_time.update(backend_cursor_management);
         backend_frame_render_time.update(backend_render_frame);
 
@@ -92,18 +91,25 @@ pub fn main() !void {
         // -----------------------------------------------------------------------------------------
     }
 }
+var end_micros: ?u32 = null;
+fn dvui_win_end() void {
+    const win = win_ref;
+    // marks end of dvui frame, don't call dvui functions after this
+    // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
+    end_micros = win.end(.{}) catch unreachable;
+}
 
 fn backend_cursor_management() void {
     const backend = backend_ref;
     const win = win_ref;
     // cursor management
-    backend.setCursor(win.cursorRequested()) catch return;
-    backend.textInputRect(win.textInputRequested()) catch return;
+    backend.setCursor(win.cursorRequested()) catch unreachable;
+    backend.textInputRect(win.textInputRequested()) catch unreachable;
 }
 fn backend_render_frame() void {
     const backend = backend_ref;
     // render frame to OS
-    backend.renderPresent() catch return;
+    backend.renderPresent() catch unreachable;
 }
 // const win = dvui.currentWindow();
 // const frame_alloc = win.arena();
