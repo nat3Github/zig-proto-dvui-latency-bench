@@ -14,12 +14,16 @@
             .hash = "icons-0.0.0-iJxA-c33MwAwe2T9SnPQlmpIkKfdNt9jQ5buN-CLufTe",
         },
         .dvui = .{
-            .url = "git+https://github.com/david-vanderson/dvui/#5512434f203dc21567ba965232e76905a2aa6d37",
-            .hash = "dvui-0.2.0-AQFJmTFM0QDEc5kuCaRPPFY2MPSgozpijjMEtT9f2kbc",
+            .url = "git+https://github.com/david-vanderson/dvui/#628f73323299398741fe7fb6a2cdec22ab5f1bca",
+            .hash = "dvui-0.2.0-AQFJmRFO0QBG6ASRuLYEuxQV3iB1CFEoPEZ4DW8vwa5f",
         },
         .z2d = .{
             .url = "git+https://github.com/nat3Github/zig-lib-z2d-dev-fork#03425c05a20d35cbeb62e0d17c60f890634bbf8f",
             .hash = "z2d-0.6.3-pre-j5P_Hpr7CgDs92sCmKFFCBMASENBhbn0klrHEAJL_uDV",
+        },
+        .fifoasync = .{
+            .url = "git+https://github.com/nat3Github/zig-lib-fifoasync#ca7bb0c1b35c88698c483abd4bb3f5fb29475b4b",
+            .hash = "fifoasync-0.0.0-XvoAAHauAQAAi-Cr9BWq46F1TFeVOHMNXAfvE1X-OruU",
         },
     },
     .paths = .{

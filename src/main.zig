@@ -13,6 +13,7 @@ const Backend = dvui.backend;
 const state = @import("state.zig");
 const gui = @import("gui.zig");
 
+const fifoasync = @import("fifoasync");
 pub var backend_frame_render_time: gui.Stat = .{};
 pub var backend_cursor_management_time: gui.Stat = .{};
 pub var dvui_window_end_time: gui.Stat = .{};
@@ -27,6 +28,7 @@ const winapi = if (builtin.os.tag == .windows) struct {
     extern "kernel32" fn AttachConsole(dwProcessId: std.os.windows.DWORD) std.os.windows.BOOL;
 } else struct {};
 pub fn main() !void {
+    try fifoasync.thread.prio.set_realtime_critical_highest();
     comptime std.debug.assert(@hasDecl(Backend, "SDLBackend"));
     if (@import("builtin").os.tag == .windows) _ = winapi.AttachConsole(0xFFFFFFFF);
 

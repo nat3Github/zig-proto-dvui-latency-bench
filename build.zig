@@ -23,6 +23,11 @@ fn update_step(step: *std.Build.Step, _: std.Build.Step.MakeOptions) !void {
             .url = "https://github.com/david-vanderson/dvui/",
             .branch = "main",
         },
+        GitDependency{
+            // fifoasync
+            .url = "https://github.com/nat3Github/zig-lib-fifoasync",
+            .branch = "rt-sched",
+        },
     };
     try update.update_dependency(step.owner.allocator, deps);
 }
@@ -102,10 +107,16 @@ pub fn add_dependencies(
         .optimize = optimize,
     }).module("tailwind");
 
+    const fifoasync_mod = b.dependency("fifoasync", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("fifoasync");
+
     root_mod.addImport("icons", icons_module);
     root_mod.addImport("dvui", dvui_mod);
     root_mod.addImport("tailwind", tailwind_module);
     root_mod.addImport("z2d", z2d_mod);
+    root_mod.addImport("fifoasync", fifoasync_mod);
 }
 
 test "test all refs" {

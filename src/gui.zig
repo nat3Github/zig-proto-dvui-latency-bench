@@ -56,8 +56,8 @@ pub const Stat = struct {
         dvui.label(
             src,
             \\{s}: 
-            \\{d:.3} us (max from {})
-            \\{d:.3} us peak
+            \\{d:.0} us (max from {})
+            \\{d:.0} us peak
         ,
             .{
                 name,
