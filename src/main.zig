@@ -13,6 +13,10 @@ const Backend = dvui.backend;
 const state = @import("state.zig");
 const gui = @import("gui.zig");
 
+pub var frame_backend_render_time: gui.Stat = .{};
+const backend_fn_type = @TypeOf(Backend.initWindow);
+const backend_fn_err_t = @typeInfo(@typeInfo(backend_fn_type).@"fn".return_type.?).error_union.payload;
+pub var backend_ref: *backend_fn_err_t = undefined;
 test "all" {
     std.testing.refAllDecls(@This());
 }
@@ -28,15 +32,12 @@ pub fn main() !void {
     defer if (gpa_instance.deinit() != .ok) @panic("Memory leak on exit!");
     const alloc = gpa_instance.allocator();
 
-    const favicon = @embedFile("assets/favicon.png");
     var backend = try Backend.initWindow(.{
         .allocator = alloc,
         .size = .{ .w = 800.0, .h = 600.0 },
         .min_size = .{ .w = 250.0, .h = 350.0 },
-        .vsync = true,
-        .title = "sampl3n",
-        .icon = favicon,
-        // .icon = window_icon_png, // can also call setIconFromFileContent()
+        .vsync = false,
+        .title = "dvui perf",
     });
     defer backend.deinit();
 
@@ -68,14 +69,10 @@ pub fn main() !void {
         // -----------------------------------------------------------------------------------------
         // marks end of dvui frame, don't call dvui functions after this
         // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
+        backend_ref = &backend;
+        frame_backend_render_time.update(render_to_backend);
+
         const end_micros = try win.end(.{});
-
-        // cursor management
-        try backend.setCursor(win.cursorRequested());
-        try backend.textInputRect(win.textInputRequested());
-
-        // render frame to OS
-        try backend.renderPresent();
 
         // waitTime and beginWait combine to achieve variable framerates
         const wait_event_micros = win.waitTime(end_micros, null);
@@ -83,6 +80,16 @@ pub fn main() !void {
     }
 }
 
+fn render_to_backend() void {
+    // cursor management
+    const win = dvui.currentWindow();
+    const backend = backend_ref;
+    backend.setCursor(win.cursorRequested()) catch return;
+    backend.textInputRect(win.textInputRequested()) catch return;
+
+    // render frame to OS
+    backend.renderPresent() catch return;
+}
 // const win = dvui.currentWindow();
 // const frame_alloc = win.arena();
 // const gpa = gState.alloc;

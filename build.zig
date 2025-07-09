@@ -18,11 +18,11 @@ fn update_step(step: *std.Build.Step, _: std.Build.Step.MakeOptions) !void {
             .url = "https://github.com/nat3Github/zig-lib-icons",
             .branch = "main",
         },
-        // GitDependency{
-        //     // dvui
-        //     .url = "https://github.com/nat3Github/zig-lib-dvui-dev-fork",
-        //     .branch = "main",
-        // },
+        GitDependency{
+            // dvui
+            .url = "https://github.com/david-vanderson/dvui/",
+            .branch = "main",
+        },
     };
     try update.update_dependency(step.owner.allocator, deps);
 }

@@ -7,6 +7,7 @@ const icons = @import("icons").tvg;
 const dvui = @import("dvui");
 const tailwind = @import("tailwind");
 const util = @import("util.zig");
+const z2d = @import("z2d");
 
 const State = @import("state.zig").App;
 
@@ -25,15 +26,19 @@ pub fn deinit() void {
     gState.deinit();
 }
 
-const Stat = struct {
-    const n = 100;
+pub const Stat = struct {
+    const n = if (@import("builtin").mode == .Debug) 100 else 1000;
     i: usize = 0,
     time: [n]u64 = undefined,
     current_max: u64 = 0,
     alltime_max: u64 = 0,
-    fn update(self: *Stat, function: anytype) void {
-        var t = std.time.Timer.start() catch unreachable;
+    fn no_inline(function: *const fn () void) void {
         function();
+    }
+    pub fn update(self: *Stat, function: *const fn () void) void {
+        var t = std.time.Timer.start() catch unreachable;
+        t.reset();
+        @call(.never_inline, no_inline, .{function});
         const tval = t.read();
         self.time[self.i] = tval;
         if (self.i + 1 == n) {
@@ -43,6 +48,25 @@ const Stat = struct {
         } else {
             self.i += 1;
         }
+    }
+    pub fn print(stat: *Stat, src: std.builtin.SourceLocation, name: []const u8, opts: dvui.Options) void {
+        const opt = dvui.Options{
+            .font_style = .heading,
+        };
+        dvui.label(
+            src,
+            \\{s}: 
+            \\{d:.3} us (max from {})
+            \\{d:.3} us peak
+        ,
+            .{
+                name,
+                ns_to_us(stat.current_max),
+                Stat.n,
+                ns_to_us(stat.alltime_max),
+            },
+            opt.override(opts),
+        );
     }
 };
 fn benchmark_t() type {
@@ -68,14 +92,52 @@ fn benchmark_t() type {
     }
 }
 const benchmark = struct {
-    pub fn label() void {
+    pub fn big_label() void {
         const txt = "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam {} et justo duo dolores et ea rebum.  {} Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, {} consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. {} Stet clita kasd gubergren, {} no sea takimata sanctus est Lorem ipsum dolor {any} sit amet.";
         dvui.label(@src(), txt, .{ 1, 2, 3, 4, 5, .{ 1, 2, 3 } }, .{});
+    }
+    pub fn small_label() void {
+        dvui.label(@src(), "constant string label", .{}, .{});
+    }
+    pub fn button() void {
+        if (dvui.button(@src(), "click me", .{}, .{ .corner_radius = .all(5) })) {
+            std.log.warn("button cliced", .{});
+        }
+    }
+    pub fn buttonIcon() void {
+        if (dvui.buttonIcon(@src(), "click me", icons.lucide.plane, .{}, .{}, .{
+            .corner_radius = .all(5),
+        })) {
+            std.log.warn("button cliced", .{});
+        }
+    }
+    pub fn image_1200x1200() void {
+        const b = img_bytes(&gState.img_1200x1200);
+        _ = dvui.image(@src(), .{ .source = b }, .{});
+    }
+    pub fn image_600x600() void {
+        const b = img_bytes(&gState.img_600x600);
+        _ = dvui.image(@src(), .{ .source = b }, .{});
+    }
+    fn img_bytes(sfc: *z2d.Surface) dvui.ImageSource {
+        const pix = std.mem.sliceAsBytes(sfc.image_surface_rgba.buf);
+        return dvui.ImageSource{
+            .pixels = .{
+                .rgba = pix,
+                .width = @intCast(sfc.getWidth()),
+                .height = @intCast(sfc.getHeight()),
+            },
+        };
+    }
+    pub fn invalidate_all_images() void {
+        dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_1200x1200)));
+        dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_600x600)));
     }
 };
 
 const Benchmark = benchmark_t();
 var bench: Benchmark = Benchmark{};
+var frame: u64 = 0;
 
 fn ns_to_us(ns: u64) f64 {
     var k: f64 = @floatFromInt(ns);
@@ -83,35 +145,24 @@ fn ns_to_us(ns: u64) f64 {
     return k;
 }
 pub fn main() !void {
-    var box = dvui.box(@src(), .vertical, .{
-        .expand = .both,
-        .color_fill = colors.bg_color,
-        .background = true,
-    });
-    defer box.deinit();
-    var sa = dvui.scrollArea(@src(), .{}, .{});
-    sa.deinit();
+    var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both, .background = false });
+    defer scroll.deinit();
+    var hbox = dvui.box(@src(), .vertical, .{ .background = true, .color_fill = colors.bg_color });
+    defer hbox.deinit();
+    dvui.label(@src(), "frame: {}", .{frame}, .{});
+    frame += 1;
     switch (mode) {
         .benchmarking => {
             const bfields = @typeInfo(Benchmark).@"struct".fields;
-            inline for (bfields) |f| {
+            @import("main.zig").frame_backend_render_time.print(@src(), "frame backend", .{});
+            inline for (bfields, 0..) |f, i| {
                 const function = @field(benchmark, f.name);
                 const stat: *Stat = &@field(bench, f.name);
                 stat.update(function);
-                dvui.label(@src(), "{s}: {d:.3} us current max", .{
-                    f.name,
-                    ns_to_us(stat.current_max),
-                }, .{
-                    .font_style = .heading,
-                });
-                dvui.label(@src(), "{s}: {d:.3} us peak", .{
-                    f.name,
-                    ns_to_us(stat.alltime_max),
-                }, .{
-                    .font_style = .heading,
-                });
+                stat.print(@src(), f.name, .{ .id_extra = i });
             }
             dvui.refresh(dvui.currentWindow(), @src(), null);
+            gState.random_color();
         },
     }
 }
