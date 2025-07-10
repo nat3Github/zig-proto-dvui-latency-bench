@@ -35,7 +35,11 @@ pub fn main() !void {
     std.log.info("SDL version: {}", .{Backend.getSDLVersion()});
     var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa_instance.deinit() != .ok) @panic("Memory leak on exit!");
-    const alloc = gpa_instance.allocator();
+    var log_alloc = @import("alloc.zig").LogAllocator{
+        .child_allocator = gpa_instance.allocator(),
+    };
+    const alloc = log_alloc.allocator();
+    // const alloc = gpa_instance.allocator();
 
     var backend = try Backend.initWindow(.{
         .allocator = alloc,
