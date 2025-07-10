@@ -16,7 +16,8 @@ const gui = @import("gui.zig");
 const fifoasync = @import("fifoasync");
 pub var backend_frame_render_time: gui.Stat = .{};
 pub var backend_cursor_management_time: gui.Stat = .{};
-pub var dvui_window_end_time: gui.Stat = .{};
+pub var dvui_window_end_time_1: gui.Stat = .{};
+pub var dvui_window_end_time_2: gui.Stat = .{};
 const backend_fn_type = @TypeOf(Backend.initWindow);
 const backend_fn_err_t = @typeInfo(@typeInfo(backend_fn_type).@"fn".return_type.?).error_union.payload;
 pub var backend_ref: *backend_fn_err_t = undefined;
@@ -37,6 +38,8 @@ pub fn main() !void {
     defer if (gpa_instance.deinit() != .ok) @panic("Memory leak on exit!");
     var log_alloc = @import("alloc.zig").LogAllocator{
         .child_allocator = gpa_instance.allocator(),
+        .log_enabled = false,
+        .name = "main allocator",
     };
     const alloc = log_alloc.allocator();
     // const alloc = gpa_instance.allocator();
@@ -84,7 +87,7 @@ pub fn main() !void {
         backend_ref = &backend;
         win_ref = &win;
 
-        dvui_window_end_time.update(dvui_win_end);
+        const end_micros = end_whole() catch @panic("");
 
         // sdl stuff
         backend_cursor_management_time.update(backend_cursor_management);
@@ -97,12 +100,123 @@ pub fn main() !void {
         // -----------------------------------------------------------------------------------------
     }
 }
-var end_micros: ?u32 = null;
-fn dvui_win_end() void {
-    const win = win_ref;
-    // marks end of dvui frame, don't call dvui functions after this
-    // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
-    end_micros = win.end(.{}) catch unreachable;
+// var end_micros: ?u32 = null;
+// marks end of dvui frame, don't call dvui functions after this
+// - sends all dvui stuff to backend for rendering, must be called before renderPresent()
+pub fn end1() void {
+    const self = win_ref;
+    for (self.texture_trash.items) |tex| {
+        self.backend.textureDestroy(tex);
+        std.debug.print("destroy tex ptr {}\n", .{@intFromPtr(tex.ptr)});
+    }
+    self.texture_trash = .empty;
+}
+pub fn end2() void {
+    const self = win_ref;
+    if (self.events.pop()) |e| {
+        if (e.evt != .mouse or e.evt.mouse.action != .position) {
+            std.log.err("positionMouseEventRemove removed a non-mouse or non-position event\n", .{});
+        }
+    }
+    _ = self._arena.reset(.shrink_to_peak_usage);
+    if (self._lifo_arena.current_usage != 0 and !self._lifo_arena.has_expanded()) {
+        std.log.warn("Arena was not empty at the end of the frame, {d} bytes left. Did you forget to free memory somewhere?", .{self._lifo_arena.current_usage});
+    }
+    _ = self._lifo_arena.reset(.shrink_to_peak_usage);
+
+    if (self._widget_stack.current_usage != 0 and !self._widget_stack.has_expanded()) {
+        std.log.warn("Widget stack was not empty at the end of the frame, {d} bytes left. Did you forget to call deinit?", .{self._widget_stack.current_usage});
+    }
+    _ = self._widget_stack.reset(.shrink_to_peak_usage);
+
+    self.events = .{};
+    self.event_num = 0;
+    const widget_id = if (self.capture) |cap| cap.id else null;
+    self.events.append(self.arena(), .{
+        .num = self.event_num + 1,
+        .target_widgetId = widget_id,
+        .evt = .{ .mouse = .{
+            .action = .position,
+            .button = .none,
+            .mod = self.modifiers,
+            .p = self.mouse_pt,
+            .floating_win = self.windowFor(self.mouse_pt),
+        } },
+    }) catch @panic("");
+
+    if (self.inject_motion_event) {
+        self.inject_motion_event = false;
+        _ = self.addEventMouseMotion(self.mouse_pt) catch @panic("");
+    }
+}
+
+pub fn end_whole() !?u32 {
+    const self = win_ref;
+    if (!self.end_rendering_done) self.endRendering(.{});
+    self.backend.end() catch @panic("");
+
+    for (self.datas_trash.items) |sd| sd.free(self.gpa);
+    self.datas_trash = .empty;
+
+    dvui_window_end_time_1.update(end1);
+
+    for (dvui.events()) |*e| {
+        if (self.drag_state == .dragging and e.evt == .mouse and e.evt.mouse.action == .release) {
+            self.drag_state = .none;
+            self.drag_name = "";
+        }
+        if (!dvui.eventMatch(e, .{ .id = self.data().id, .r = self.rect_pixels, .cleanup = true }))
+            continue;
+
+        if (e.evt == .mouse) {
+            if (e.evt.mouse.action == .focus) {
+                // unhandled click, clear focus
+                dvui.focusWidget(null, null, null);
+            }
+        } else if (e.evt == .key) {
+            if (e.evt.key.action == .down and e.evt.key.matchBind("next_widget")) {
+                e.handle(@src(), self.data());
+                dvui.tabIndexNext(e.num);
+            }
+
+            if (e.evt.key.action == .down and e.evt.key.matchBind("prev_widget")) {
+                e.handle(@src(), self.data());
+                dvui.tabIndexPrev(e.num);
+            }
+        }
+    }
+
+    self.mouse_pt_prev = self.mouse_pt;
+
+    if (!self.subwindowFocused().used) {
+        var i = self.subwindows.items.len;
+        while (i > 0) : (i -= 1) {
+            const sw = self.subwindows.items[i - 1];
+            if (sw.used) {
+                dvui.focusSubwindow(sw.id, null);
+                break;
+            }
+        }
+
+        dvui.refresh(null, @src(), null);
+    }
+    dvui_window_end_time_2.update(end2);
+
+    defer dvui.current_window = self.previous_window;
+
+    if (self.extra_frames_needed > 0) return 0;
+    var ret: ?u32 = null;
+    var it = self.animations.iterator();
+    while (it.next_used()) |kv| {
+        if (kv.value_ptr.start_time > 0) {
+            const st = @as(u32, @intCast(kv.value_ptr.start_time));
+            ret = @min(ret orelse st, st);
+        } else if (kv.value_ptr.end_time > 0) {
+            ret = 0;
+            break;
+        }
+    }
+    return ret;
 }
 
 fn backend_cursor_management() void {
@@ -117,42 +231,3 @@ fn backend_render_frame() void {
     // render frame to OS
     backend.renderPresent() catch unreachable;
 }
-// const win = dvui.currentWindow();
-// const frame_alloc = win.arena();
-// const gpa = gState.alloc;
-// const pool = &gState.pool;
-// const wavform_widget = &gState.wavform_widget;
-// fn gui_main_frame() !void {
-//     const win = dvui.currentWindow();
-//     const frame_alloc = win.arena();
-
-//     var fpstext = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
-//     fpstext.addText(try std.fmt.allocPrint(frame_alloc, "fps: {d:.3}", .{dvui.FPS()}), .{});
-//     fpstext.deinit();
-//     {
-//         const gpa = gState.alloc;
-//         const pool = &gState.pool;
-//         const wavform_widget = &gState.wavform_widget;
-//         const wavform_offset = &gState.wavform_widget_offset;
-
-//         if (dvui.button(@src(), "load", .{}, .{})) {
-//             try wavform_widget.load(
-//                 gpa,
-//                 pool,
-//                 try std.fs.cwd().realpathAlloc(frame_alloc, "audioutil/testfiles/joyryde.wav"),
-//             );
-//         }
-//         if (dvui.button(@src(), "forwards", .{}, .{})) {
-//             wavform_offset.* = wavform_offset.* + 2 * 2048;
-//         }
-//         if (dvui.button(@src(), "backwards", .{}, .{})) {
-//             wavform_offset.* = std.math.sub(u64, wavform_offset.*, 2 * 2048) catch 0;
-//         }
-//         var ww_rect = mainbox.child_rect;
-//         ww_rect.h = 100;
-//         ww_rect.y = 100;
-//         ww_rect.x = 0;
-
-//         try wavform_widget.draw_wavform_container(gpa, pool, wavform_offset.*, 44100 * 2, ww_rect, bg_color);
-//     }
-// }

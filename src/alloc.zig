@@ -55,6 +55,8 @@ fn server(sig: ThreadStatus, self: *@This()) void {
 pub const LogAllocator = struct {
     const mem = std.mem;
     child_allocator: Allocator,
+    log_enabled: bool = true,
+    name: []const u8 = "",
 
     pub fn allocator(self: *LogAllocator) Allocator {
         return .{
@@ -67,12 +69,18 @@ pub const LogAllocator = struct {
             },
         };
     }
+    fn print(self: *@This(), comptime fmt: []const u8, args: anytype) void {
+        if (self.log_enabled) {
+            std.debug.print("{s}", .{self.name});
+            std.debug.print(fmt, args);
+        }
+    }
 
     fn alloc(ctx: *anyopaque, n: usize, alignment: mem.Alignment, ra: usize) ?[*]u8 {
         const self: *@This() = @ptrCast(@alignCast(ctx));
         const allc = self.child_allocator;
         const ret = allc.vtable.alloc(allc.ptr, n, alignment, ra);
-        std.debug.print("info: allocated {} bytes\n", .{n * alignment.toByteUnits()});
+        self.print("info: allocated {} bytes\n", .{n * alignment.toByteUnits()});
         return ret;
     }
 
@@ -80,7 +88,7 @@ pub const LogAllocator = struct {
         const self: *@This() = @ptrCast(@alignCast(ctx));
         const allc = self.child_allocator;
         const ret = allc.vtable.resize(allc.ptr, buf, alignment, new_len, ret_addr);
-        std.debug.print("info: allocated {} bytes\n", .{new_len * alignment.toByteUnits()});
+        self.print("info: allocated {} bytes\n", .{new_len * alignment.toByteUnits()});
         return ret;
     }
 
@@ -88,14 +96,14 @@ pub const LogAllocator = struct {
         const self: *@This() = @ptrCast(@alignCast(ctx));
         const allc = self.child_allocator;
         const ret = allc.vtable.remap(allc.ptr, memory, alignment, new_len, return_address);
-        std.debug.print("info: remapped {} bytes\n", .{new_len * alignment.toByteUnits()});
+        self.print("info: remapped {} bytes\n", .{new_len * alignment.toByteUnits()});
         return ret;
     }
 
     fn free(ctx: *anyopaque, buf: []u8, alignment: mem.Alignment, ret_addr: usize) void {
         const self: *@This() = @ptrCast(@alignCast(ctx));
         const allc = self.child_allocator;
-        std.debug.print("info: freed {} bytes\n", .{buf.len});
+        self.print("info: freed {} bytes\n", .{buf.len});
         allc.vtable.free(allc.ptr, buf, alignment, ret_addr);
     }
 };

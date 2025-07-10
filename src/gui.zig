@@ -214,10 +214,12 @@ pub fn main() !void {
     frame += 1;
     switch (mode) {
         .benchmarking => {
+            // MAIN
             const bfields = @typeInfo(Benchmark).@"struct".fields;
             @import("main.zig").backend_frame_render_time.draw(@src(), "frame backend", .{ .id_extra = 90900 });
             @import("main.zig").backend_cursor_management_time.draw(@src(), "cursor management", .{ .id_extra = 90901 });
-            @import("main.zig").dvui_window_end_time.draw(@src(), "window.end() call", .{ .id_extra = 90902 });
+            @import("main.zig").dvui_window_end_time_1.draw(@src(), "the backend.textureDestroy() call inside window.end", .{ .id_extra = 90902 });
+            @import("main.zig").dvui_window_end_time_2.draw(@src(), "window.end() 2", .{ .id_extra = 90903 });
             inline for (bfields, 0..) |f, i| {
                 const function = @field(benchmark, f.name);
                 const stat: *Stat = &@field(bench, f.name);

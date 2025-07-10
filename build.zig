@@ -6,7 +6,7 @@ fn update_step(step: *std.Build.Step, _: std.Build.Step.MakeOptions) !void {
         GitDependency{
             // z2d
             .url = "https://github.com/nat3Github/zig-lib-z2d-dev-fork",
-            .branch = "main",
+            .branch = "dev",
         },
         GitDependency{
             // tailwind

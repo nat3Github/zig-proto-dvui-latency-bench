@@ -14,12 +14,12 @@
             .hash = "icons-0.0.0-iJxA-c33MwAwe2T9SnPQlmpIkKfdNt9jQ5buN-CLufTe",
         },
         .dvui = .{
-            .url = "git+https://github.com/david-vanderson/dvui/#628f73323299398741fe7fb6a2cdec22ab5f1bca",
-            .hash = "dvui-0.2.0-AQFJmRFO0QBG6ASRuLYEuxQV3iB1CFEoPEZ4DW8vwa5f",
+            .url = "git+https://github.com/david-vanderson/dvui/#67cf946437b35f88b8b47b724ead29c394dd7d69",
+            .hash = "dvui-0.2.0-AQFJmVpM0QBS2shyxeJ06bJfGjNawI_npMyvfzR9xg72",
         },
         .z2d = .{
-            .url = "git+https://github.com/nat3Github/zig-lib-z2d-dev-fork#03425c05a20d35cbeb62e0d17c60f890634bbf8f",
-            .hash = "z2d-0.6.3-pre-j5P_Hpr7CgDs92sCmKFFCBMASENBhbn0klrHEAJL_uDV",
+            .url = "git+https://github.com/nat3Github/zig-lib-z2d-dev-fork#d675aa4833b1581c477c2841cad10903ed58c5a0",
+            .hash = "z2d-0.7.0-j5P_HjnNDACB30ItazCZLrRgWVR2APuLtUrsIA72PYS6",
         },
         .fifoasync = .{
             .url = "git+https://github.com/nat3Github/zig-lib-fifoasync#ca7bb0c1b35c88698c483abd4bb3f5fb29475b4b",
