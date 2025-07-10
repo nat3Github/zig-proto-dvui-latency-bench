@@ -90,7 +90,7 @@ pub const Stat = struct {
         var ctx = z2d.Context.init(alloc, &img);
         defer ctx.deinit();
         ctx.setLineWidth(3.0);
-        ctx.setSourceToPixel(.{ .rgba = State.z2d_pixel_from(.fromHex(tailwind.red400)) });
+        ctx.setSourceToPixel(.{ .rgba = State.z2d_pixel_from(.fromHex(tailwind.red500)) });
         State.sfc_set_bg_color(&img, .transparent);
 
         const window_max_us = 5000.0;
