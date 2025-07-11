@@ -48,7 +48,7 @@ pub fn main() !void {
         .allocator = alloc,
         .size = .{ .w = 800.0, .h = 600.0 },
         .min_size = .{ .w = 250.0, .h = 350.0 },
-        .vsync = false,
+        .vsync = true,
         .title = "dvui perf",
     });
     defer backend.deinit();
@@ -107,7 +107,6 @@ pub fn end1() void {
     const self = win_ref;
     for (self.texture_trash.items) |tex| {
         self.backend.textureDestroy(tex);
-        std.debug.print("destroy tex ptr {}\n", .{@intFromPtr(tex.ptr)});
     }
     self.texture_trash = .empty;
 }

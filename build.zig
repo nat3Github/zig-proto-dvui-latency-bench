@@ -20,8 +20,9 @@ fn update_step(step: *std.Build.Step, _: std.Build.Step.MakeOptions) !void {
         },
         GitDependency{
             // dvui
-            .url = "https://github.com/david-vanderson/dvui/",
-            .branch = "main",
+            // .url = "https://github.com/david-vanderson/dvui/",
+            .url = "https://github.com/nat3Github/zig-lib-dvui-dev-fork",
+            .branch = "sdl-update-textures",
         },
         GitDependency{
             // fifoasync

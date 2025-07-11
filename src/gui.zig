@@ -28,6 +28,8 @@ pub fn deinit() void {
 
 pub const Stat = struct {
     const n = if (@import("builtin").mode == .Debug) 100 else 1000;
+    const internal_width = 600;
+    const internal_height = 80;
     i: usize = 0,
     is_init: bool = false,
     time: [n]u64 = blk: {
@@ -37,12 +39,16 @@ pub const Stat = struct {
     },
     current_max: u64 = 0,
     alltime_max: u64 = 0,
+    static_buff: [400 * 80 * 4 + 1024]u8 = undefined,
+    ximg: z2d.Surface = undefined,
     fn no_inline(function: *const fn () void) void {
         function();
     }
     pub fn init(self: *Stat) void {
+        var sal = std.heap.FixedBufferAllocator.init(&self.static_buff);
+        const alloc = sal.allocator();
         // const alloc = gState.alloc;
-        // self.img = z2d.Surface.init(.image_surface_rgba, alloc, 300, 30) catch return;
+        self.ximg = z2d.Surface.init(.image_surface_rgba, alloc, 400, 80) catch unreachable;
         self.is_init = true;
     }
     pub fn update(self: *Stat, function: *const fn () void) void {
@@ -84,20 +90,22 @@ pub const Stat = struct {
             \\{d:.0} us peak
         , .{ name, ns_to_us(self.current_max), Stat.n, ns_to_us(self.alltime_max) }, opt.override(opts));
 
+        const img = &self.ximg;
+
         const alloc = dvui.currentWindow()._arena.allocator();
-        var img = z2d.Surface.init(.image_surface_rgba, alloc, 400, 60) catch return;
-        defer img.deinit(alloc);
-        var ctx = z2d.Context.init(alloc, &img);
+        // const alloc = dvui.currentWindow()._arena.allocator();
+        var ctx = z2d.Context.init(alloc, img);
         defer ctx.deinit();
         ctx.setLineWidth(3.0);
         ctx.setSourceToPixel(.{ .rgba = State.z2d_pixel_from(.fromHex(tailwind.red500)) });
-        State.sfc_set_bg_color(&img, .transparent);
+        State.sfc_set_bg_color(img, .transparent);
 
         const window_max_us = 5000.0;
         const width: usize = @intCast(img.getWidth());
         const heightf: f64 = @floatFromInt(img.getHeight());
         const w4 = width / 4;
         const k_points = n / w4;
+        assert(k_points > 0); // to little points for this image width
         const dx = @as(f32, @floatFromInt(width)) / @as(f32, @floatFromInt(w4));
         var dxj: f64 = 0.0;
         var last_y: f64 = heightf;
@@ -119,12 +127,11 @@ pub const Stat = struct {
         }
         const opt2 = dvui.Options{
             .font_style = .heading,
-            .min_size_content = .{ .w = 400, .h = 80 },
             .expand = .horizontal,
             .id_extra = opts.id_extra orelse 0 + 1000000,
         };
-        var imgb = img_bytes(&img);
-        imgb.pixels.invalidation_strategy = .always;
+        var imgb = img_bytes(img);
+        imgb.pixelsPMA.invalidate = .always;
         _ = dvui.image(@src(), .{
             .source = imgb,
         }, opt2);
@@ -155,8 +162,8 @@ fn benchmark_t() type {
 fn img_bytes(sfc: *z2d.Surface) dvui.ImageSource {
     const pix = std.mem.sliceAsBytes(sfc.image_surface_rgba.buf);
     return dvui.ImageSource{
-        .pixels = .{
-            .rgba = pix,
+        .pixelsPMA = .{
+            .rgba = std.mem.bytesAsSlice(dvui.Color.PMA, pix),
             .width = @intCast(sfc.getWidth()),
             .height = @intCast(sfc.getHeight()),
         },
@@ -182,17 +189,19 @@ const benchmark = struct {
             std.log.warn("button cliced", .{});
         }
     }
-    pub fn image_1200x1200() void {
-        const b = img_bytes(&gState.img_1200x1200);
+    pub fn image_1200x1200_always() void {
+        var b = img_bytes(&gState.img_1200x1200);
+        b.pixelsPMA.invalidate = .always;
         _ = dvui.image(@src(), .{ .source = b }, .{});
     }
-    pub fn image_600x600() void {
-        const b = img_bytes(&gState.img_600x600);
+    pub fn image_600x600_always() void {
+        var b = img_bytes(&gState.img_600x600);
+        b.pixelsPMA.invalidate = .always;
         _ = dvui.image(@src(), .{ .source = b }, .{});
     }
     pub fn invalidate_all_images() void {
-        dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_1200x1200)));
-        dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_600x600)));
+        // dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_1200x1200)));
+        // dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_600x600)));
     }
 };
 
@@ -212,11 +221,13 @@ pub fn main() !void {
     defer hbox.deinit();
     dvui.label(@src(), "frame: {}", .{frame}, .{});
     frame += 1;
+    defer dvui.refresh(dvui.currentWindow(), @src(), null);
     switch (mode) {
         .benchmarking => {
             // MAIN
             const bfields = @typeInfo(Benchmark).@"struct".fields;
             @import("main.zig").backend_frame_render_time.draw(@src(), "frame backend", .{ .id_extra = 90900 });
+            // if (true) return;
             @import("main.zig").backend_cursor_management_time.draw(@src(), "cursor management", .{ .id_extra = 90901 });
             @import("main.zig").dvui_window_end_time_1.draw(@src(), "the backend.textureDestroy() call inside window.end", .{ .id_extra = 90902 });
             @import("main.zig").dvui_window_end_time_2.draw(@src(), "window.end() 2", .{ .id_extra = 90903 });
@@ -226,7 +237,6 @@ pub fn main() !void {
                 stat.update(function);
                 stat.draw(@src(), f.name, .{ .id_extra = 1000000 + i });
             }
-            dvui.refresh(dvui.currentWindow(), @src(), null);
             gState.random_color();
         },
     }

@@ -13,9 +13,12 @@
             .url = "git+https://github.com/nat3Github/zig-lib-icons#8e34a0324d46d73a5a59bda09892ac5140b54c0f",
             .hash = "icons-0.0.0-iJxA-c33MwAwe2T9SnPQlmpIkKfdNt9jQ5buN-CLufTe",
         },
+        // .dvui = .{
+        //     .path = "../../lib/dvui",
+        // },
         .dvui = .{
-            .url = "git+https://github.com/david-vanderson/dvui/#67cf946437b35f88b8b47b724ead29c394dd7d69",
-            .hash = "dvui-0.2.0-AQFJmVpM0QBS2shyxeJ06bJfGjNawI_npMyvfzR9xg72",
+            .url = "git+https://github.com/nat3Github/zig-lib-dvui-dev-fork#23185dd72c38c04b6bde60d4382d010013a9c578",
+            .hash = "dvui-0.2.0-AQFJmSd80QBLR_ZfBdyeKnWTaRWr6mCqDtpMhf2i4EP1",
         },
         .z2d = .{
             .url = "git+https://github.com/nat3Github/zig-lib-z2d-dev-fork#d675aa4833b1581c477c2841cad10903ed58c5a0",
