@@ -98,6 +98,11 @@ pub fn main() !void {
         interrupted = try backend.waitEventTimeout(wait_event_micros);
 
         // -----------------------------------------------------------------------------------------
+        if (@import("builtin").mode == .Debug) {
+            std.Thread.sleep(5_000_000);
+        } else {
+            std.Thread.sleep(15_000_000);
+        }
     }
 }
 // var end_micros: ?u32 = null;

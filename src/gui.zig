@@ -27,7 +27,7 @@ pub fn deinit() void {
 }
 
 pub const Stat = struct {
-    const n = if (@import("builtin").mode == .Debug) 100 else 1000;
+    const n = 100;
     const internal_width = 600;
     const internal_height = 80;
     i: usize = 0,
