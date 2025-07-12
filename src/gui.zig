@@ -90,6 +90,47 @@ pub const Stat = struct {
             \\{d:.0} us peak
         , .{ name, ns_to_us(self.current_max), Stat.n, ns_to_us(self.alltime_max) }, opt.override(opts));
 
+        const Static = struct {
+            var yaxis: dvui.PlotWidget.Axis = .{
+                .name = "Y Axis",
+                // let plot figure out min
+                .min = 0,
+                .max = 5000,
+            };
+        };
+
+        var plot = dvui.plot(@src(), .{
+            .title = "perf",
+            .x_axis = null,
+            .y_axis = &Static.yaxis,
+            .border_thick = 1.0,
+            .mouse_hover = true,
+        }, .{ .min_size_content = .{ .h = 120, .w = 100 }, .expand = .horizontal, .id_extra = 100000000 + opts.id_extra.? });
+        var s1 = plot.line();
+
+        const points: usize = self.time.len;
+        for (0..points + 1) |i| {
+            const idx = (self.i + i) % n;
+            const us_norm = ns_to_us(self.time[idx]);
+            s1.point(@as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(points)), us_norm);
+        }
+        s1.stroke(3, dvui.themeGet().color_accent);
+        s1.deinit();
+        plot.deinit();
+    }
+    pub fn drawx(self: *Stat, src: std.builtin.SourceLocation, name: []const u8, opts: dvui.Options) void {
+        if (!self.is_init) return;
+
+        var opt = dvui.Options{
+            .font_style = .heading,
+            .id_extra = 0,
+        };
+        dvui.label(src,
+            \\{s}:
+            \\{d:.0} us (max from {})
+            \\{d:.0} us peak
+        , .{ name, ns_to_us(self.current_max), Stat.n, ns_to_us(self.alltime_max) }, opt.override(opts));
+
         const img = &self.ximg;
 
         const alloc = dvui.currentWindow()._arena.allocator();
@@ -199,15 +240,18 @@ const benchmark = struct {
         b.pixelsPMA.invalidate = .always;
         _ = dvui.image(@src(), .{ .source = b }, .{});
     }
-    pub fn invalidate_all_images() void {
-        // dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_1200x1200)));
-        // dvui.textureInvalidateCache(dvui.ImageSource.hash(img_bytes(&gState.img_600x600)));
+    pub fn text_layout() void {
+        text_layout_example();
+    }
+    pub fn plot() void {
+        plots_example();
     }
 };
 
 const Benchmark = benchmark_t();
 var bench: Benchmark = Benchmark{};
 var frame: u64 = 0;
+var line_height_factor: f32 = 3;
 
 fn ns_to_us(ns: u64) f64 {
     var k: f64 = @floatFromInt(ns);
@@ -226,16 +270,18 @@ pub fn main() !void {
         .benchmarking => {
             // MAIN
             const bfields = @typeInfo(Benchmark).@"struct".fields;
+            @import("main.zig").window_begin_time.draw(@src(), "begin call", .{ .id_extra = 90899 });
             @import("main.zig").backend_frame_render_time.draw(@src(), "frame backend", .{ .id_extra = 90900 });
-            // if (true) return;
             @import("main.zig").backend_cursor_management_time.draw(@src(), "cursor management", .{ .id_extra = 90901 });
             @import("main.zig").dvui_window_end_time_1.draw(@src(), "the backend.textureDestroy() call inside window.end", .{ .id_extra = 90902 });
             @import("main.zig").dvui_window_end_time_2.draw(@src(), "window.end() 2", .{ .id_extra = 90903 });
-            inline for (bfields, 0..) |f, i| {
-                const function = @field(benchmark, f.name);
-                const stat: *Stat = &@field(bench, f.name);
-                stat.update(function);
-                stat.draw(@src(), f.name, .{ .id_extra = 1000000 + i });
+            if (true) {
+                inline for (bfields, 0..) |f, i| {
+                    const function = @field(benchmark, f.name);
+                    const stat: *Stat = &@field(bench, f.name);
+                    stat.update(function);
+                    stat.draw(@src(), f.name, .{ .id_extra = 1000000 + i });
+                }
             }
             gState.random_color();
         },
@@ -276,3 +322,121 @@ pub const layout = struct {
         }
     }
 };
+
+fn text_layout_example() void {
+    _ = dvui.sliderEntry(@src(), "line height: {d:0.2}", .{ .value = &line_height_factor, .min = 0.1, .max = 2, .interval = 0.1 }, .{});
+
+    {
+        var tl = dvui.TextLayoutWidget.init(@src(), .{}, .{ .expand = .horizontal });
+        tl.install(.{});
+        defer tl.deinit();
+
+        var cbox = dvui.box(@src(), .vertical, .{ .margin = dvui.Rect.all(6), .min_size_content = .{ .w = 40 } });
+        if (dvui.buttonIcon(
+            @src(),
+            "play",
+            dvui.entypo.controller_play,
+            .{},
+            .{},
+            .{ .expand = .ratio },
+        )) {
+            dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Play", .message = "You clicked play" });
+        }
+        if (dvui.buttonIcon(
+            @src(),
+            "more",
+            dvui.entypo.dots_three_vertical,
+            .{},
+            .{},
+            .{ .expand = .ratio },
+        )) {
+            dvui.dialog(@src(), .{}, .{ .modal = false, .title = "More", .message = "You clicked more" });
+        }
+        cbox.deinit();
+
+        cbox = dvui.box(@src(), .vertical, .{ .margin = dvui.Rect.all(4), .padding = dvui.Rect.all(4), .gravity_x = 1.0, .background = true, .color_fill = .fill_window, .min_size_content = .{ .w = 160 }, .max_size_content = .width(160) });
+        dvui.icon(@src(), "aircraft", dvui.entypo.aircraft, .{}, .{ .min_size_content = .{ .h = 30 }, .gravity_x = 0.5 });
+        dvui.label(@src(), "Caption Heading", .{}, .{ .font_style = .caption_heading, .gravity_x = 0.5 });
+        var tl_caption = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .background = false });
+        tl_caption.addText("Here is some caption text that is in it's own text layout.", .{ .font_style = .caption });
+        tl_caption.deinit();
+        cbox.deinit();
+
+        if (tl.touchEditing()) |floating_widget| {
+            defer floating_widget.deinit();
+            tl.touchEditingMenu();
+        }
+
+        tl.processEvents();
+
+        const lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ";
+        const lorem2 = " Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n";
+        tl.addText(lorem, .{ .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) });
+
+        if (tl.addTextClick("This text is a link that is part of the text layout and goes to the dvui home page.", .{ .color_text = .{ .color = .{ .r = 0x35, .g = 0x84, .b = 0xe4 } }, .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) })) {
+            _ = dvui.openURL("https://david-vanderson.github.io/");
+        }
+
+        tl.addText(lorem2, .{ .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) });
+
+        const start = "\nNotice that the text in this box is wrapping around the stuff in the corners.\n\n";
+        tl.addText(start, .{ .font_style = .title_4 });
+
+        const col = dvui.Color.average(dvui.themeGet().color_text, dvui.themeGet().color_fill);
+        tl.addTextTooltip(@src(), "Hover this for a tooltip.\n\n", "This is some tooltip", .{ .color_text = .{ .color = col }, .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) });
+
+        tl.format("This line uses zig format strings: {d}\n\n", .{12345}, .{});
+
+        tl.addText("Title ", .{ .font_style = .title });
+        tl.addText("Title-1 ", .{ .font_style = .title_1 });
+        tl.addText("Title-2 ", .{ .font_style = .title_2 });
+        tl.addText("Title-3 ", .{ .font_style = .title_3 });
+        tl.addText("Title-4 ", .{ .font_style = .title_4 });
+        tl.addText("Heading\n", .{ .font_style = .heading });
+
+        tl.addText("Here ", .{ .font_style = .title, .color_text = .{ .color = .{ .r = 100, .b = 100 } } });
+        tl.addText("is some ", .{ .font_style = .title_2, .color_text = .{ .color = .{ .b = 100, .g = 100 } } });
+        tl.addText("ugly text ", .{ .font_style = .title_1, .color_text = .{ .color = .{ .r = 100, .g = 100 } } });
+        tl.addText("that shows styling.", .{ .font_style = .caption, .color_text = .{ .color = .{ .r = 100, .g = 50, .b = 50 } } });
+    }
+}
+
+pub fn plots_example() void {
+    var vbox = dvui.box(@src(), .vertical, .{ .min_size_content = .{ .w = 300, .h = 100 }, .expand = .ratio });
+    defer vbox.deinit();
+
+    const Static = struct {
+        var xaxis: dvui.PlotWidget.Axis = .{
+            .name = "X Axis",
+            .min = 0.05,
+            .max = 0.95,
+        };
+
+        var yaxis: dvui.PlotWidget.Axis = .{
+            .name = "Y Axis",
+            // let plot figure out min
+            .max = 0.8,
+        };
+    };
+
+    var plot = dvui.plot(@src(), .{
+        .title = "Plot Title",
+        .x_axis = &Static.xaxis,
+        .y_axis = &Static.yaxis,
+        .border_thick = 1.0,
+        .mouse_hover = true,
+    }, .{ .expand = .both });
+    var s1 = plot.line();
+
+    const points: usize = 1000;
+    const freq: f32 = 5;
+    plot_dx += 1;
+    for (0..points + 1) |i| {
+        const fval: f64 = @sin(1.8 * std.math.pi * @as(f64, @floatFromInt(i + plot_dx)) / @as(f64, @floatFromInt(points)) * freq);
+        s1.point(@as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(points)), fval);
+    }
+    s1.stroke(3, dvui.themeGet().color_accent);
+    s1.deinit();
+    plot.deinit();
+}
+var plot_dx: usize = 0;

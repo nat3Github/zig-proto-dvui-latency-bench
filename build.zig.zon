@@ -17,8 +17,8 @@
         //     .path = "../../lib/dvui",
         // },
         .dvui = .{
-            .url = "git+https://github.com/nat3Github/zig-lib-dvui-dev-fork#23185dd72c38c04b6bde60d4382d010013a9c578",
-            .hash = "dvui-0.2.0-AQFJmSd80QBLR_ZfBdyeKnWTaRWr6mCqDtpMhf2i4EP1",
+            .url = "git+https://github.com/nat3Github/zig-lib-dvui-dev-fork#3e446119a61b4011ab88b360274b40f91151aa08",
+            .hash = "dvui-0.2.0-AQFJmfmB0QARWm72qafUyjRSDx52-tuke5deBXaGG5nt",
         },
         .z2d = .{
             .url = "git+https://github.com/nat3Github/zig-lib-z2d-dev-fork#d675aa4833b1581c477c2841cad10903ed58c5a0",

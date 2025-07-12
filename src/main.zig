@@ -16,6 +16,7 @@ const gui = @import("gui.zig");
 const fifoasync = @import("fifoasync");
 pub var backend_frame_render_time: gui.Stat = .{};
 pub var backend_cursor_management_time: gui.Stat = .{};
+pub var window_begin_time: gui.Stat = .{};
 pub var dvui_window_end_time_1: gui.Stat = .{};
 pub var dvui_window_end_time_2: gui.Stat = .{};
 const backend_fn_type = @TypeOf(Backend.initWindow);
@@ -29,7 +30,7 @@ const winapi = if (builtin.os.tag == .windows) struct {
     extern "kernel32" fn AttachConsole(dwProcessId: std.os.windows.DWORD) std.os.windows.BOOL;
 } else struct {};
 pub fn main() !void {
-    try fifoasync.thread.prio.set_realtime_critical_highest();
+    // try fifoasync.thread.prio.set_realtime_critical_highest();
     comptime std.debug.assert(@hasDecl(Backend, "SDLBackend"));
     if (@import("builtin").os.tag == .windows) _ = winapi.AttachConsole(0xFFFFFFFF);
 
@@ -48,7 +49,7 @@ pub fn main() !void {
         .allocator = alloc,
         .size = .{ .w = 800.0, .h = 600.0 },
         .min_size = .{ .w = 250.0, .h = 350.0 },
-        .vsync = true,
+        .vsync = false,
         .title = "dvui perf",
     });
     defer backend.deinit();
@@ -59,33 +60,47 @@ pub fn main() !void {
     var win = try dvui.Window.init(@src(), alloc, backend.backend(), .{});
     defer win.deinit();
 
-    var interrupted = false;
+    // var interrupted = false;
+    var fps_time = std.time.Timer.start() catch unreachable;
+    var fps_arr: [50]u64 = undefined;
+    var fps_arr_i: usize = 0;
+    for (&fps_arr) |*f| {
+        f.* = 0;
+    }
 
     main_loop: while (true) {
-        const nstime = win.beginWait(interrupted);
+        backend_ref = &backend;
+        win_ref = &win;
+
+        // const nstime = win.beginWait(interrupted);
 
         // marks the beginning of a frame for dvui, can call dvui functions after this
-        try win.begin(nstime);
+        const sf_pro_ttf = @embedFile("assets/SF-Pro.ttf");
 
+        window_begin_time.update(begin);
         // send all SDL events to dvui for processing
         const quit = try backend.addAllEvents(&win);
         if (quit) break :main_loop;
 
         // if dvui widgets might not cover the whole window, then need to clear
         // the previous frame's render
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 0, 0, 0, 255);
+        // _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 0, 0, 0, 255);
         _ = Backend.c.SDL_RenderClear(backend.renderer);
 
         // The demos we pass in here show up under "Platform-specific demos"
-        const sf_pro_ttf = @embedFile("assets/SF-Pro.ttf");
         try dvui.addFont("base", sf_pro_ttf, null);
+
+        fps_arr_i = (fps_arr_i + 1) % fps_arr.len;
+        fps_arr[fps_arr_i] = fps_time.lap();
+        var avg: u64 = 0;
+        for (&fps_arr) |f| avg += f;
+        avg /= fps_arr.len;
+        const avgf: f64 = @floatFromInt(avg);
+        dvui.label(@src(), "FPS: {d:.0}", .{1_000_000_000.0 / avgf}, .{});
 
         gui.main() catch |e| {
             std.log.err("{}", .{e});
         };
-
-        backend_ref = &backend;
-        win_ref = &win;
 
         const end_micros = end_whole() catch @panic("");
 
@@ -94,12 +109,13 @@ pub fn main() !void {
         backend_frame_render_time.update(backend_render_frame);
 
         // waitTime and beginWait combine to achieve variable framerates
-        const wait_event_micros = win.waitTime(end_micros, null);
-        interrupted = try backend.waitEventTimeout(wait_event_micros);
+        _ = end_micros;
+        // const wait_event_micros = win.waitTime(end_micros, null);
+        // interrupted = try backend.waitEventTimeout(wait_event_micros);
 
         // -----------------------------------------------------------------------------------------
         if (@import("builtin").mode == .Debug) {
-            std.Thread.sleep(5_000_000);
+            // std.Thread.sleep(5_000_000);
         } else {
             std.Thread.sleep(15_000_000);
         }
@@ -108,6 +124,12 @@ pub fn main() !void {
 // var end_micros: ?u32 = null;
 // marks end of dvui frame, don't call dvui functions after this
 // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
+pub fn begin() void {
+    // marks the beginning of a frame for dvui, can call dvui functions after this
+    const win = win_ref;
+    win.begin(0) catch unreachable;
+}
+
 pub fn end1() void {
     const self = win_ref;
     for (self.texture_trash.items) |tex| {
